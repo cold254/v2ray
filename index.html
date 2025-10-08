@@ -1,88 +1,63 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Trendy Rammy Proxy</title>
-    <style>
-        .hidden { display: none; }
-        .loading { color: #666; }
-    </style>
-</head>
-<body>
-    <div id="app">
-        <div id="loading" class="loading">Loading content...</div>
-        <div id="content" class="hidden"></div>
-        <div id="error" class="hidden"></div>
-    </div>
-
+    <title>Proxy Service</title>
     <script>
-        class VPSProxy {
-            constructor(baseUrl = 'http://206.189.112.66') {
-                this.baseUrl = baseUrl;
+        class RouterProxy {
+            constructor() {
+                this.vpsBaseUrl = 'http://206.189.112.66';
+                this.setupRouting();
             }
 
-            async fetchFromVPS(endpoint = '', options = {}) {
-                try {
-                    const response = await fetch(`${this.baseUrl}${endpoint}`, {
-                        method: options.method || 'GET',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            ...options.headers
-                        },
-                        body: options.body ? JSON.stringify(options.body) : null
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
+            setupRouting() {
+                // Handle navigation
+                window.addEventListener('popstate', () => this.loadRoute());
+                
+                // Intercept link clicks
+                document.addEventListener('click', (e) => {
+                    if (e.target.tagName === 'A' && e.target.href) {
+                        e.preventDefault();
+                        const path = new URL(e.target.href).pathname;
+                        this.navigate(path);
                     }
+                });
+            }
 
-                    return await response.text();
+            navigate(path) {
+                history.pushState(null, '', path);
+                this.loadRoute();
+            }
+
+            async loadRoute() {
+                const path = window.location.pathname;
+                try {
+                    const response = await fetch(`${this.vpsBaseUrl}${path}`);
+                    const content = await response.text();
+                    
+                    // Update page content
+                    document.getElementById('content').innerHTML = content;
+                    
+                    // Update page title if available
+                    const titleMatch = content.match(/<title>(.*?)<\/title>/i);
+                    if (titleMatch) {
+                        document.title = titleMatch[1];
+                    }
+                    
                 } catch (error) {
-                    console.error('Proxy fetch error:', error);
-                    throw error;
-                }
-            }
-
-            async loadPage() {
-                const loading = document.getElementById('loading');
-                const content = document.getElementById('content');
-                const error = document.getElementById('error');
-
-                try {
-                    const htmlContent = await this.fetchFromVPS('/');
-                    
-                    loading.classList.add('hidden');
-                    content.innerHTML = htmlContent;
-                    content.classList.remove('hidden');
-                    
-                    // Re-initialize any scripts from the loaded content
-                    this.executeScripts(content);
-                    
-                } catch (err) {
-                    loading.classList.add('hidden');
-                    error.innerHTML = `Failed to load content: ${err.message}`;
-                    error.classList.remove('hidden');
-                }
-            }
-
-            executeScripts(container) {
-                const scripts = container.getElementsByTagName('script');
-                for (let script of scripts) {
-                    const newScript = document.createElement('script');
-                    if (script.src) {
-                        newScript.src = script.src;
-                    } else {
-                        newScript.textContent = script.textContent;
-                    }
-                    document.head.appendChild(newScript);
+                    document.getElementById('content').innerHTML = `
+                        <h1>Error</h1>
+                        <p>Failed to load: ${error.message}</p>
+                    `;
                 }
             }
         }
 
-        // Initialize proxy when page loads
-        document.addEventListener('DOMContentLoaded', () => {
-            const proxy = new VPSProxy();
-            proxy.loadPage();
-        });
+        // Initialize
+        new RouterProxy();
+        window.addEventListener('load', () => window.proxy.loadRoute());
     </script>
+</head>
+<body>
+    <div id="content">Loading...</div>
 </body>
 </html>
